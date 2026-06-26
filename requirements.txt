@@ -1,0 +1,6 @@
+requests
+dotenv
+google-cloud-bigquery
+beautifulsoup4
+openai
+fpdf2
