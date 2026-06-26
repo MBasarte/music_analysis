@@ -30,8 +30,8 @@ class ChatGptHandler:
             album_name: Optional album name when the report is scoped to a
                 single album.
             save_prompt: When True, the system and user prompts sent to the
-                model are written to a text file under PROMPTS_DIR for
-                debugging and auditing.
+                model and the raw model response are written to a text file
+                under PROMPTS_DIR for debugging and auditing.
 
         Returns:
             dict: Parsed report with keys such as `titulo`,
@@ -83,8 +83,6 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
 
         logging.info(f"Generating report for {artist_name} with {len(tracks)} tracks")
         logging.debug(f"User prompt: {user_prompt}")
-        if save_prompt:
-            self._save_prompt(artist_name, system_prompt, user_prompt, album_name)
         response = self.client.chat.completions.create(
             model=REPORT_MODEL,
             response_format={"type": "json_object"},
@@ -93,15 +91,22 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
                 {"role": "user", "content": user_prompt},
             ],
         )
-        return json.loads(response.choices[0].message.content)
+        raw_response = response.choices[0].message.content
+        if save_prompt:
+            self._save_prompt(
+                artist_name, system_prompt, user_prompt, raw_response, album_name
+            )
+        return json.loads(raw_response)
 
-    def _save_prompt(self, artist_name, system_prompt, user_prompt, album_name=None):
-        """Persist the system and user prompts to a text file.
+    def _save_prompt(self, artist_name, system_prompt, user_prompt, raw_response, album_name=None):
+        """Persist the prompts and the raw model response to a text file.
 
         Args:
             artist_name: Name of the artist, used to build the file name.
             system_prompt: System prompt sent to the model.
             user_prompt: User prompt sent to the model.
+            raw_response: Raw text response returned by the model before being
+                parsed and rendered into a PDF.
             album_name: Optional album name appended to the file name.
 
         Returns:
@@ -115,11 +120,12 @@ Devuelve EXCLUSIVAMENTE un JSON válido con esta estructura:
         content = (
             f"MODEL: {REPORT_MODEL}\n\n"
             f"=== SYSTEM PROMPT ===\n{system_prompt}\n\n"
-            f"=== USER PROMPT ===\n{user_prompt}\n"
+            f"=== USER PROMPT ===\n{user_prompt}\n\n"
+            f"=== MODEL RESPONSE ===\n{raw_response}\n"
         )
         with open(output_path, "w", encoding="utf-8") as prompt_file:
             prompt_file.write(content)
-        logging.info(f"Prompt written to {output_path}")
+        logging.info(f"Prompt and response written to {output_path}")
         return os.path.abspath(output_path)
 
     def _slugify(self, name):
